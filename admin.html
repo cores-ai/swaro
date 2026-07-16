@@ -158,7 +158,7 @@
         // This password is hardcoded for simplicity. Change it to whatever you want.
         const SECRET_PASSWORD = 'swaro'; 
 
-        const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        const _supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
         function login() {
             const pass = document.getElementById('admin-pass').value;
