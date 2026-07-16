@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Swaro Music | Admin Portal</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <!-- Supabase SDK -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        :root {
+            --bg-color: #030008;
+            --primary: #9d4edd;
+            --secondary: #3c096c;
+            --accent: #e0aaff;
+            --text-main: #ffffff;
+            --text-muted: #a0a0a0;
+            --glass-bg: rgba(255, 255, 255, 0.05);
+            --glass-border: rgba(255, 255, 255, 0.1);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Outfit', sans-serif; }
+        
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 40px 20px;
+        }
+
+        .bg-mesh {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: -1;
+            background: 
+                radial-gradient(circle at 50% 0%, rgba(157, 78, 221, 0.3) 0%, transparent 50%),
+                radial-gradient(circle at 50% 100%, rgba(60, 9, 108, 0.4) 0%, transparent 50%);
+            filter: blur(60px);
+        }
+
+        .admin-panel {
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            border-radius: 24px;
+            padding: 40px;
+            width: 100%;
+            max-width: 600px;
+            backdrop-filter: blur(20px);
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+        }
+
+        .header { display: flex; align-items: center; gap: 16px; margin-bottom: 30px; }
+        .header h1 { font-size: 1.8rem; font-weight: 800; }
+
+        .form-group { margin-bottom: 20px; }
+        label { display: block; font-size: 0.9rem; font-weight: 600; color: var(--accent); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; }
+        
+        input[type="password"], input[type="text"], textarea, input[type="file"] {
+            width: 100%;
+            background: rgba(0,0,0,0.3);
+            border: 1px solid var(--glass-border);
+            color: white;
+            padding: 14px;
+            border-radius: 12px;
+            font-size: 1rem;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+
+        input:focus, textarea:focus { border-color: var(--primary); }
+        textarea { resize: vertical; min-height: 100px; }
+        input[type="file"] { padding: 10px; cursor: pointer; }
+
+        .btn {
+            width: 100%;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: white;
+            border: none;
+            padding: 16px;
+            border-radius: 12px;
+            font-size: 1.1rem;
+            font-weight: 800;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin-top: 10px;
+        }
+        .btn:hover:not(:disabled) { transform: translateY(-3px); box-shadow: 0 10px 20px rgba(157, 78, 221, 0.3); }
+        .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+        .status { margin-top: 20px; font-size: 0.95rem; text-align: center; font-weight: 600; }
+        .status.success { color: #00ff88; }
+        .status.error { color: #ff3366; }
+        .status.loading { color: var(--accent); }
+
+    </style>
+</head>
+<body>
+
+    <div class="bg-mesh"></div>
+
+    <div class="admin-panel" id="auth-section">
+        <div class="header">
+            <svg viewBox="0 0 24 24" style="width:40px; height:40px; border-radius:12px; background:linear-gradient(135deg, #9d4edd, #3c096c); padding:6px;">
+                <path fill="white" d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
+            </svg>
+            <h1>Admin Login</h1>
+        </div>
+        
+        <div class="form-group">
+            <label>Admin Password</label>
+            <input type="password" id="admin-pass" placeholder="Enter secure password">
+        </div>
+        
+        <button class="btn" onclick="login()">Login</button>
+        <div id="login-status" class="status"></div>
+    </div>
+
+    <div class="admin-panel" id="upload-section" style="display: none;">
+        <div class="header">
+            <svg viewBox="0 0 24 24" style="width:40px; height:40px; border-radius:12px; background:linear-gradient(135deg, #9d4edd, #3c096c); padding:6px;">
+                <path fill="white" d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
+            </svg>
+            <h1>Release Manager</h1>
+        </div>
+
+        <div class="form-group">
+            <label>Version Tag (e.g., v1.0.6)</label>
+            <input type="text" id="version-tag" placeholder="Auto-calculated (vX.X.X)">
+        </div>
+
+        <div class="form-group">
+            <label>New Features (One per line)</label>
+            <textarea id="features-text" placeholder="Added dark mode&#10;Improved performance"></textarea>
+        </div>
+
+        <div class="form-group">
+            <label>Bug Fixes (One per line)</label>
+            <textarea id="bugs-text" placeholder="Fixed crash on startup"></textarea>
+        </div>
+
+        <div class="form-group">
+            <label>Upload App Files (APK)</label>
+            <input type="file" id="file-upload" accept=".apk,.exe,.dmg,.ipa">
+        </div>
+
+        <button class="btn" id="submit-btn" onclick="publishRelease()">Publish to Supabase</button>
+        <div id="status-msg" class="status"></div>
+    </div>
+
+    <script>
+        // ==========================================
+        // SUPABASE CONFIG
+        // ==========================================
+        const SUPABASE_URL = 'https://qfueqjmvkvhnlyfzrxio.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFmdWVxam12a3Zobmx5ZnpyeGlvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQxNjg3MTYsImV4cCI6MjA5OTc0NDcxNn0.2Q5jDyxwSVU13stgQ79-PE6D4EfbBdjMS9v2YXJIiTo';
+        
+        // This password is hardcoded for simplicity. Change it to whatever you want.
+        const SECRET_PASSWORD = 'swaro'; 
+
+        const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        function login() {
+            const pass = document.getElementById('admin-pass').value;
+            if (pass === SECRET_PASSWORD) {
+                document.getElementById('auth-section').style.display = 'none';
+                document.getElementById('upload-section').style.display = 'block';
+                autoCalculateVersion();
+            } else {
+                document.getElementById('login-status').className = 'status error';
+                document.getElementById('login-status').textContent = 'Incorrect Password!';
+            }
+        }
+
+        async function autoCalculateVersion() {
+            try {
+                const { data, error } = await supabase.from('releases').select('version').order('created_at', { ascending: false }).limit(1);
+                if (data && data.length > 0) {
+                    const match = data[0].version.match(/v(\d+)\.(\d+)\.(\d+)/);
+                    if (match) {
+                        document.getElementById('version-tag').value = `v${match[1]}.${match[2]}.${parseInt(match[3]) + 1}`;
+                        return;
+                    }
+                }
+                document.getElementById('version-tag').value = 'v1.0.0';
+            } catch (e) {
+                document.getElementById('version-tag').value = 'v1.0.0';
+            }
+        }
+
+        async function publishRelease() {
+            const version = document.getElementById('version-tag').value.trim();
+            const features = document.getElementById('features-text').value.trim().split('\n').filter(i => i);
+            const bugs = document.getElementById('bugs-text').value.trim().split('\n').filter(i => i);
+            const file = document.getElementById('file-upload').files[0];
+            const btn = document.getElementById('submit-btn');
+
+            if (!version || !file) {
+                showStatus('Error: Version and File are required.', 'error');
+                return;
+            }
+            
+            // Check if user set the keys
+            if (SUPABASE_URL === 'YOUR_SUPABASE_URL') {
+                showStatus('Error: You need to paste your Supabase keys in the HTML code first!', 'error');
+                return;
+            }
+
+            btn.disabled = true;
+            btn.textContent = 'Publishing...';
+            
+            try {
+                // 1. Upload APK to Storage
+                showStatus('Uploading APK to Supabase...', 'loading');
+                const fileName = `${version}_${file.name}`;
+                
+                const { data: uploadData, error: uploadError } = await supabase.storage.from('apks').upload(fileName, file, { upsert: true });
+                if (uploadError) throw new Error("Upload Failed: " + uploadError.message);
+                
+                // Get public URL
+                const { data: urlData } = supabase.storage.from('apks').getPublicUrl(fileName);
+                const apkUrl = urlData.publicUrl;
+
+                // 2. Save Release to Database
+                showStatus('Saving release data...', 'loading');
+                const { error: dbError } = await supabase.from('releases').insert([
+                    { version: version, features: features, bugs: bugs, apk_url: apkUrl }
+                ]);
+                if (dbError) throw new Error("Database Error: " + dbError.message);
+
+                showStatus(`🚀 Successfully Published ${version}!`, 'success');
+                
+            } catch (err) {
+                console.error(err);
+                showStatus(err.message, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Publish to Supabase';
+            }
+        }
+
+        function showStatus(msg, type) {
+            const status = document.getElementById('status-msg');
+            status.textContent = msg;
+            status.className = `status ${type}`;
+        }
+    </script>
+</body>
+</html>
