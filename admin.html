@@ -146,6 +146,9 @@
 
         <button class="btn" id="submit-btn" onclick="publishRelease()">Publish to Supabase</button>
         <div id="status-msg" class="status"></div>
+        <div id="progress-container" style="display:none; width: 100%; background: var(--glass-bg); border-radius: 8px; margin-top: 10px; overflow: hidden; border: 1px solid var(--glass-border);">
+            <div id="progress-bar" style="width: 0%; height: 8px; background: linear-gradient(90deg, var(--primary), var(--accent)); transition: width 0.2s ease;"></div>
+        </div>
     </div>
 
     <script>
@@ -212,11 +215,40 @@
             
             try {
                 // 1. Upload APK to Storage
-                showStatus('Uploading APK to Supabase...', 'loading');
+                showStatus('Uploading APK to Supabase... 0%', 'loading', 0);
                 const fileName = `${version}_${file.name}`;
                 
-                const { data: uploadData, error: uploadError } = await _supabase.storage.from('apks').upload(fileName, file, { upsert: true });
-                if (uploadError) throw new Error("Upload Failed: " + uploadError.message);
+                await new Promise((resolve, reject) => {
+                    const xhr = new XMLHttpRequest();
+                    // Encode fileName to handle spaces or special characters safely
+                    xhr.open('POST', `${SUPABASE_URL}/storage/v1/object/apks/${encodeURIComponent(fileName)}`, true);
+                    xhr.setRequestHeader('Authorization', `Bearer ${SUPABASE_ANON_KEY}`);
+                    xhr.setRequestHeader('apikey', SUPABASE_ANON_KEY);
+                    xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+                    xhr.setRequestHeader('x-upsert', 'true');
+
+                    xhr.upload.onprogress = (event) => {
+                        if (event.lengthComputable) {
+                            const percent = Math.round((event.loaded / event.total) * 100);
+                            showStatus(`Uploading APK to Supabase... ${percent}%`, 'loading', percent);
+                        }
+                    };
+
+                    xhr.onload = () => {
+                        if (xhr.status >= 200 && xhr.status < 300) {
+                            resolve();
+                        } else {
+                            try {
+                                const errData = JSON.parse(xhr.responseText);
+                                reject(new Error("Upload Failed: " + (errData.message || xhr.statusText)));
+                            } catch(e) {
+                                reject(new Error("Upload Failed: " + xhr.statusText));
+                            }
+                        }
+                    };
+                    xhr.onerror = () => reject(new Error("Network Error during upload"));
+                    xhr.send(file);
+                });
                 
                 // Get public URL
                 const { data: urlData } = _supabase.storage.from('apks').getPublicUrl(fileName);
@@ -240,10 +272,21 @@
             }
         }
 
-        function showStatus(msg, type) {
+        function showStatus(msg, type, progress = null) {
             const status = document.getElementById('status-msg');
             status.textContent = msg;
             status.className = `status ${type}`;
+            
+            const pContainer = document.getElementById('progress-container');
+            const pBar = document.getElementById('progress-bar');
+            
+            if (progress !== null) {
+                pContainer.style.display = 'block';
+                pBar.style.width = `${progress}%`;
+            } else {
+                pContainer.style.display = 'none';
+                pBar.style.width = '0%';
+            }
         }
     </script>
 </body>
